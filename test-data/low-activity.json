@@ -1,0 +1,17 @@
+{
+  "cauldrons": [
+    { "id": "c1", "name": "Troubled Cauldron", "lat": 0.7, "lon": 0.3, "maxVolume": 1000, "fillRatePerMin": 0.1 },
+    { "id": "c2", "name": "Dormant Cauldron", "lat": 0.3, "lon": 0.7, "maxVolume": 800, "fillRatePerMin": 0 },
+    { "id": "market", "name": "Enchanted Market", "lat": 0.5, "lon": 0.5, "maxVolume": 99999, "fillRatePerMin": 0 }
+  ],
+  "edges": [
+    { "from": "c1", "to": "market", "travelMin": 15 },
+    { "from": "c2", "to": "market", "travelMin": 12 }
+  ],
+  "drains": [
+    { "cauldronId": "c1", "startMin": 480, "endMin": 481, "removedVolume": 10 },
+    { "cauldronId": "c1", "startMin": 485, "endMin": 486, "removedVolume": 10 },
+    { "cauldronId": "c1", "startMin": 490, "endMin": 491, "removedVolume": 10 }
+  ],
+  "tickets": []
+}
