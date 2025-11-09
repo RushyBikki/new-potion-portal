@@ -306,7 +306,7 @@ export default function Home()
   return (
   <div className="min-h-screen p-6 bg-purple-900 text-white">
       <header className="mb-6 text-center">
-        <h1 className="text-3xl font-extrabold text-black">Peter's Potion Portal</h1>
+        <h1 className="text-3xl font-extrabold text-black">Poyo's Potion Portal</h1>
         <p className="text-sm text-black">HackUTD2025</p>
       </header>
 
