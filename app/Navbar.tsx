@@ -6,7 +6,7 @@ function Navbar() {
             <div className="flex container mx-auto px-4 justify-between items-center">
                 <h1 className="text-3xl font-bold tracking-wide"> Poyo's Potion Portal</h1>
                 <nav>
-                    <ul className="flex space-x-4 ">
+                    <ul className="flex space-x-8 ">
                         <li className="hover:text-yellow-300 transition duration-300">
                             <Link href="/" className="font-medium">
                                 Home
