@@ -1,0 +1,68 @@
+/* page + animated grass background */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+/* full-screen background video */
+#bg-video {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  mix-blend-mode: normal;
+}
+
+/* map sits on top of the video background; transparent background so grass shows through */
+#map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  z-index: 1;
+  background: transparent;
+}
+
+/* Logbook button: size reverted to original (10vw) and margins restored to 12px */
+#logbook-btn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  z-index: 1200;
+  cursor: pointer;
+  display: inline-block;
+}
+#logbook {
+  width: 10vw; /* original size */
+  height: auto;
+  display: block;
+  pointer-events: none; /* allow the button to receive clicks */
+}
+
+/* Marker icons should appear above the background and map layers */
+.leaflet-marker-icon {
+  pointer-events: auto;
+  z-index: 800;
+}
+
+/* Polylines visible above map and background, not intercepting pointer events */
+.leaflet-interactive {
+  pointer-events: none;
+  z-index: 700;
+}
+
+/* Optional: style the logbook overlay if you use one */
+#logbook-overlay {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
