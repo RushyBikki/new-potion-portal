@@ -1,21 +1,28 @@
 // server.js
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
-const axios = require('axios');
+const { getData } = require('./index'); // your existing axios fetch module
+
 const app = express();
+const PORT = process.env.NEXT_PUBLIC_PORT || 3000;
 
-const PORT = process.env.PORT || 3000;
-const API_BASE = process.env.API_BASE || 'https://hackutd2025.eog.systems';
-const API_URL = `${API_BASE}/api/Data`;
+// Serve front-end static files
+app.use(express.static(path.join(__dirname, 'public')));
 
+// Proxy endpoint - front-end calls this to avoid CORS
 app.get('/proxy/data', async (req, res) => {
   try {
-    const resp = await axios.get(API_URL, { timeout: 10000 });
-    res.json(resp.data);
+    const data = await getData(); // uses axios inside index.js
+    if (!data) return res.status(502).json({ error: 'No data from upstream' });
+    res.json(data);
   } catch (err) {
+    console.error('Proxy fetch error:', err?.message ?? err);
     const status = err.response?.status || 502;
     res.status(status).json({ error: 'Upstream fetch failed' });
   }
 });
 
-app.listen(PORT, () => console.log(`Proxy listening at http://localhost:${PORT}`));
+app.listen(NEXT_PUBLIC_PORT, () => {
+  console.log(`Server running http://localhost:${NEXT_PUBLIC_PORT}`);
+});

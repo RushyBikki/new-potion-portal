@@ -1,5 +1,13 @@
 import Image from "next/image";
 export default function Home() {
+  
+
+  async function getData() {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/history`);
+    const data = await res.json();
+    console.log(data + "yo");
+    getData();
+  } 
   return (
     <div>
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">

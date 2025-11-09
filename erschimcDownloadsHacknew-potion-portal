@@ -1,0 +1,35 @@
+[33mcommit d91eb5a7ed090451e1f38b896dc0d704008b317d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mChris[m[33m, [m[1;31morigin/Chris[m[33m)[m
+Author: ChrisHerkins <chrisherkinsmain@gmail.com>
+Date:   Sun Nov 9 02:30:43 2025 -0600
+
+    no yellow :)
+
+[33mcommit 9c0ec116c7f5b571f1899fe66dc1f354d8a4ddf0[m
+Author: ChrisHerkins <chrisherkinsmain@gmail.com>
+Date:   Sat Nov 8 23:30:17 2025 -0600
+
+    navbar slight fix to size
+
+[33mcommit 04c84ac02a58e6405513ee4bfc0083fc3340f58a[m
+Author: ChrisHerkins <chrisherkinsmain@gmail.com>
+Date:   Sat Nov 8 23:16:33 2025 -0600
+
+    added login waiter (needs middle of page still)
+
+[33mcommit 41c128b1e570c80e2d9155e297059bff9ce264df[m
+Author: ChrisHerkins <chrisherkinsmain@gmail.com>
+Date:   Sat Nov 8 22:48:51 2025 -0600
+
+    save1nav
+
+[33mcommit dcc18b321e80dbf2f96cf078cb35cbaf61fc99ab[m
+Author: ChrisHerkins <chrisherkinsmain@gmail.com>
+Date:   Sat Nov 8 21:24:38 2025 -0600
+
+    surely this is navbar
+
+[33mcommit 7ea203d1f9fdd1ea604dcaa10b0efd79eaca5e57[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmaster[m[33m, [m[1;32mapii[m[33m)[m
+Author: RushyBikki <rbpilot801@gmail.com>
+Date:   Sat Nov 8 15:34:54 2025 -0600
+
+    Initial commit from Create Next App

@@ -1,12 +1,12 @@
+// index.js
 const axios = require('axios');
 
-const BASE = process.env.API_BASE || 'https://hackutd2025.eog.systems';
-const URL = `${BASE}/api/Data`;
+const NEXT_PUBLIC_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://hackutd2025.eog.systems';
+const NEXT_PUBLIC_URL = `${NEXT_PUBLIC_BASE}/api/Data`;
 
 async function getData() {
   try {
     const resp = await axios.get(URL, { headers: { Accept: 'application/json' }, timeout: 10000 });
-    console.log(JSON.stringify(resp.data, null, 2));
     return resp.data;
   } catch (err) {
     if (err.response) {
@@ -15,9 +15,9 @@ async function getData() {
     } else {
       console.error('Request error:', err.message);
     }
-    process.exitCode = 1;
+    throw err;
   }
 }
 
-if (require.main === module) getData();
+if (require.main === module) getData().catch(()=>process.exit(1));
 module.exports = { getData };
