@@ -1,6 +1,6 @@
 "use client";
 
-
+import {cauldronData} from "../api/route";
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import DataUploader from "./components/DataUploader";
@@ -91,6 +91,8 @@ function buildHistory(cauldron: Cauldron, drains: DrainEvent[], initial = 0) {
 
 export default function Home() 
 {
+  const results =  cauldronData();
+          console.log({results});
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [data, setData] =
