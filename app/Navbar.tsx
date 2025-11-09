@@ -18,6 +18,12 @@ function Navbar() {
                             </Link>
                             
                         </li>
+                        <li className="hover:text-yellow-300 transition duration-300">
+                            <Link href="/Login" className="font-medium">
+                                Login
+                            </Link>
+                            
+                        </li>
                     </ul>
                 </nav>
             </div>
