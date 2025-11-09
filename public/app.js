@@ -5,12 +5,11 @@
   
     const map = L.map('map', { preferCanvas: true, attributionControl: false, zoomControl: false }).setView([0, 0], 2);
   
-    // Icons using your GIFs
-  const marketIcon = L.icon({
-    iconUrl: '/images/market.gif',
-    iconSize: [64, 64],
-    iconAnchor: [32, 64]
-  });
+    // Icons using  GIFs
+const marketIcon = L.icon({
+  iconUrl: '/images/market.gif',
+  iconSize: [96, 96],
+  iconAnchor: [48, 96]  });
 
   const cauldronIcon = L.icon({
     iconUrl: '/images/greepotion.gif',

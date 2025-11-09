@@ -7,8 +7,9 @@ html, body {
   overflow: hidden;
 }
 
-/* full-screen background video */
+/* stronger video color treatment */
 #bg-video {
+  filter: saturate(1.8) contrast(1.08) brightness(1.03) hue-rotate(-6deg);
   position: fixed;
   top: 0;
   left: 0;
@@ -17,9 +18,25 @@ html, body {
   object-fit: cover;
   z-index: 0;
   pointer-events: none;
-  opacity: 1;
-  mix-blend-mode: normal;
 }
+
+
+/* stronger, slightly opaque green overlay */
+#bg-green-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(18, 160, 40, 0.30); /* increase alpha from 0.18 -> 0.30 */
+  mix-blend-mode: multiply;
+}
+
+
+/* ensure map and UI remain above the overlay */
+#map { z-index: 1; }
+#logbook-btn { z-index: 1200; }
+#logbook-overlay { z-index: 1300; }
+
 
 /* map sits on top of the video background; transparent background so grass shows through */
 #map {
