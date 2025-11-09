@@ -3,7 +3,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import DataUploader from "./components/DataUploader";
 import CauldronDetails from "./components/CauldronDetails";
 import Navbar from "./components/Navbar";
 import bluePotionGif from "./components/Images/bluepotion.gif";
@@ -25,42 +24,8 @@ type Edge = { from: string; to: string; travelMin: number };
 type Ticket = { id: string; date: string; amount: number };
 
 
-// Scaled-down demo data for one day (1440 minutes); we'll compress playback for convenience
-const SAMPLE_CAULDRONS: Cauldron[] = [
-  { id: "c1", name: "North Cauldron", lat: 0.8, lon: 0.2, maxVolume: 1000, fillRatePerMin: 0.6 },
-  { id: "c2", name: "East Cauldron", lat: 0.6, lon: 0.7, maxVolume: 800, fillRatePerMin: 0.9 },
-  { id: "c3", name: "South Cauldron", lat: 0.2, lon: 0.4, maxVolume: 1200, fillRatePerMin: 0.4 },
-  { id: "market", name: "Enchanted Market", lat: 0.5, lon: 0.5, maxVolume: 99999, fillRatePerMin: 0 },
-];
-
-
-const SAMPLE_EDGES: Edge[] = [
-  { from: "c1", to: "c2", travelMin: 10 },
-  { from: "c2", to: "c3", travelMin: 8 },
-  { from: "c3", to: "c1", travelMin: 12 },
-  { from: "c1", to: "market", travelMin: 7 },
-  { from: "c2", to: "market", travelMin: 9 },
-  { from: "c3", to: "market", travelMin: 6 },
-];
-
-
-// Small set of drain events (minute index 0..1439). For demo, we pick a few drain windows.
+// Drain events type
 type DrainEvent = { cauldronId: string; startMin: number; endMin: number; removedVolume: number };
-
-
-const SAMPLE_DRAINS: DrainEvent[] = [
-  { cauldronId: "c1", startMin: 180, endMin: 185, removedVolume: 150 },
-  { cauldronId: "c2", startMin: 480, endMin: 485, removedVolume: 300 },
-  { cauldronId: "c3", startMin: 900, endMin: 905, removedVolume: 250 },
-];
-
-
-// Tickets that arrive with only a date (we're modelling a single-day run; use same date for simplicity)
-const SAMPLE_TICKETS: Ticket[] = [
-  { id: "t1", date: "2025-11-08", amount: 150 },
-  { id: "t2", date: "2025-11-08", amount: 285 }, // slightly different
-  { id: "t3", date: "2025-11-08", amount: 400 }, // bogus / suspicious
-];
 
 
 // Utility: build minute-by-minute history for each cauldron across the day (1440 min)
@@ -93,17 +58,122 @@ export default function Home()
 {
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [data, setData] =
-  useState(() => ({
-    cauldrons: SAMPLE_CAULDRONS,
-    edges: SAMPLE_EDGES,
-    drains: SAMPLE_DRAINS,
-    tickets: SAMPLE_TICKETS,
+  const [data, setData] = useState(() => ({
+    cauldrons: [] as Cauldron[],
+    edges: [] as Edge[],
+    drains: [] as DrainEvent[],
+    tickets: [] as Ticket[],
   }));
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const minutes = 24 * 60;
+
+  // Fetch data from API
+  async function fetchData() {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch cauldrons data
+      const response = await fetch('/api?endpoint=Information/cauldrons', {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch cauldrons data: ${errorText}`);
+      }
+      const cauldronsData = await response.json();
+      
+      // If the data is wrapped in an object, extract the array
+      const cauldronArray = Array.isArray(cauldronsData) ? cauldronsData : 
+                          cauldronsData?.cauldrons || 
+                          cauldronsData?.data || 
+                          [];
+      
+      console.log('Raw cauldron data:', cauldronsData); // Debug log
+
+      // Normalize coordinates to 0-1 range
+      const normalizeCoords = (coords: { latitude: number; longitude: number }[]) => {
+        const lats = coords.map(c => c.latitude);
+        const lons = coords.map(c => c.longitude);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLon = Math.min(...lons);
+        const maxLon = Math.max(...lons);
+        
+        return (coord: { latitude: number; longitude: number }) => ({
+          lat: (coord.latitude - minLat) / (maxLat - minLat),
+          lon: (coord.longitude - minLon) / (maxLon - minLon)
+        });
+      };
+
+      // Get the coordinate normalizer function
+      const normalize = normalizeCoords(cauldronsData);
+
+      // Transform cauldron data to match our format
+      const transformedCauldrons = cauldronsData.map((c: any) => {
+        const normalized = normalize(c);
+        return {
+          id: String(c.id),
+          name: c.name,
+          lat: normalized.lat,
+          lon: normalized.lon,
+          maxVolume: c.max_volume,
+          fillRatePerMin: 0.5 // We'll calculate this from time series data
+        };
+      });
+
+      console.log('Transformed cauldrons:', transformedCauldrons); // Debug log
+
+      // Define the market node
+      const marketNode: Cauldron = {
+        id: "market",
+        name: "Enchanted Market",
+        lat: 0.5, // Center position
+        lon: 0.5, // Center position
+        maxVolume: 99999,
+        fillRatePerMin: 0
+      };
+
+      // Add market to the cauldrons list
+      const allCauldrons = [...transformedCauldrons, marketNode];
+
+      // Create edges connecting all cauldrons to the market
+      const marketEdges = transformedCauldrons.map((c: Cauldron) => ({
+        from: c.id,
+        to: "market",
+        travelMin: Math.floor(Math.random() * 15) + 5 // Random travel time between 5-20 minutes
+      }));
+
+      console.log('All cauldrons:', allCauldrons); // Debug log
+      console.log('Market edges:', marketEdges); // Debug log
+
+      // Update state with the transformed data
+      setData(prev => ({
+        ...prev,
+        cauldrons: allCauldrons,
+        edges: marketEdges,
+        drains: [], // Clear sample drains
+        tickets: []  // Clear sample tickets
+      }));
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      console.error('Error fetching data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Load API data on component mount
+  useEffect(() => {
+    fetchData();
+  }, []);
 
 
   // Build history once
@@ -228,21 +298,8 @@ export default function Home()
   }
 
 
-  function handleLoad(parsed: any) {
-    // expect parsed to have optional arrays
-    setData((prev) => ({
-      cauldrons: parsed.cauldrons ?? prev.cauldrons,
-      edges: parsed.edges ?? prev.edges,
-      drains: parsed.drains ?? prev.drains,
-      tickets: parsed.tickets ?? prev.tickets,
-    }));
-    setSelectedId(null);
-    setMinute(0);
-  }
-
-
-  function handleResetSample() {
-    setData({ cauldrons: SAMPLE_CAULDRONS, edges: SAMPLE_EDGES, drains: SAMPLE_DRAINS, tickets: SAMPLE_TICKETS });
+  function handleRefresh() {
+    fetchData();
     setSelectedId(null);
     setMinute(0);
   }
@@ -314,7 +371,15 @@ export default function Home()
   <div className="flex gap-0">
     {/* Left sidebar */}
   <div className="flex-none min-w-[200px] bg-green-900 border border-green-800 p-4 rounded-lg overflow-hidden">
-          <DataUploader onLoad={handleLoad} onReset={handleResetSample} />
+          <div className="mb-4 p-3 border rounded bg-purple-900/60 border-purple-900">
+            <div className="flex items-center gap-2">
+              <button onClick={handleRefresh} className="px-3 py-1 bg-purple-800 text-white rounded font-semibold">
+                Refresh Data
+              </button>
+            </div>
+            {loading && <p className="mt-2 text-xs text-white">Loading data...</p>}
+            {error && <p className="mt-2 text-xs text-red-400">Error: {error}</p>}
+          </div>
           <div className="mt-4">
             <div className="mb-4 flex items-center gap-2">
               <button onClick={() => setPlaying((p) => !p)} className="px-3 py-1 bg-purple-800 text-white rounded font-semibold">
