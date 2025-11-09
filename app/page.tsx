@@ -2,7 +2,7 @@
 
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import DataUploader from "./components/DataUploader";
 import CauldronDetails from "./components/CauldronDetails";
 import Navbar from "./components/Navbar";
@@ -102,7 +102,6 @@ export default function Home()
   }));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const router = useRouter();
-  const searchParams = useSearchParams();
   const pathname = usePathname();
   const minutes = 24 * 60;
 
@@ -249,22 +248,26 @@ export default function Home()
   }
 
 
-  // Sync selection from URL -> state on load / when params change
+  // Sync selection from URL -> state on load / when params change (client-side)
   useEffect(() => {
-    const param = searchParams.get("cauldron");
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const param = sp.get("cauldron");
     if (param && data.cauldrons.some((c) => c.id === param)) {
       setSelectedId(param);
     } else if (!param) {
       setSelectedId(null);
     }
-  }, [searchParams?.toString(), data.cauldrons]);
+    // run when cauldrons list changes
+  }, [data.cauldrons]);
 
 
   // Helper to select and update URL (replace, not push)
   function selectCauldron(id: string | null) {
     setSelectedId(id);
-    // build new search params
-    const sp = new URLSearchParams(searchParams ? Object.fromEntries(searchParams.entries()) : []);
+    // build new search params from current URL (client-side)
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
     if (id) {
       sp.set("cauldron", id);
     } else {
@@ -297,7 +300,7 @@ export default function Home()
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [data.cauldrons, selectedId, searchParams, pathname, router]);
+  }, [data.cauldrons, selectedId, pathname, router]);
 
 
   return (
