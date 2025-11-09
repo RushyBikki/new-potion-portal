@@ -1,3 +1,12 @@
+
+This is a project for the OEG project at HACKUTD2025. 
+Test data provided
+
+Done by Rushy Bikki, Christopher Herkins, Ani Ramanan, Aditya Singh
+
+
+
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
