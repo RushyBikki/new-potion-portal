@@ -6,6 +6,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import DataUploader from "./components/DataUploader";
 import CauldronDetails from "./components/CauldronDetails";
 import Navbar from "./components/Navbar";
+import bluePotionGif from "./components/Images/bluepotion.gif";
 
 
 type Cauldron = {
@@ -170,8 +171,8 @@ export default function Home()
     const h = 600;
     const pad = 20;
     return (
-        <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="border rounded bg-purple-900">
-          <rect x="0" y="0" width={w} height={h} fill="#1b0b2f" />
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet" className="w-full h-auto border rounded bg-purple-900">
+          <rect x="0" y="0" width={w} height={h} rx={18} ry={18} fill="#1b0b2f" />
         {/* edges */}
         {data.edges.map((e, i) => {
           const a = data.cauldrons.find((c) => c.id === e.from)!;
@@ -183,13 +184,11 @@ export default function Home()
           return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#16a34a" strokeWidth={2} opacity={0.9} />;
         })}
         {/* nodes */}
-        {data.cauldrons.map((c) => {
+          {data.cauldrons.map((c) => {
           const x = pad + c.lon * (w - pad * 2);
           const y = pad + c.lat * (h - pad * 2);
           const value = c.id === "market" ? undefined : histories[c.id][minute];
-          const pct = value ? Math.round((value / c.maxVolume) * 100) : 0;
-          const radius = c.id === "market" ? 20 : 12 + Math.min(20, Math.round((pct / 100) * 20));
-          const color = c.id === "market" ? "#7c3aed" : pct > 80 ? "#6b21a8" : pct > 50 ? "#16a34a" : "#34d399";
+          const radius = c.id === "market" ? 36 : 28;
           const selected = selectedId === c.id;
           return (
             <g
@@ -202,7 +201,18 @@ export default function Home()
               style={{ cursor: c.id === "market" ? "default" : "pointer" }}
               role="button"
               aria-label={`Select ${c.name}`}>
-              <circle r={radius} fill={color} stroke={selected ? "#7c3aed" : "#111"} strokeWidth={selected ? 3 : 1} />
+              {/* render the potion GIF via foreignObject+img so animation displays reliably */}
+              {
+                (() => {
+                  // asset import may be a string URL or an object with `src`
+                  const gifSrc = (bluePotionGif as any)?.src ?? (bluePotionGif as unknown as string) ?? "/components/Images/bluepotion.gif";
+                  return (
+                    <foreignObject x={-radius} y={-radius} width={radius * 2} height={radius * 2} style={{ overflow: "visible" }}>
+                      <img src={gifSrc} width={radius * 2} height={radius * 2} style={{ width: "100%", height: "100%", borderRadius: "50%", display: "block" }} alt="potion" />
+                    </foreignObject>
+                  );
+                })()
+              }
               <text x={radius + 8} y={4} fontSize={12} fill="#ffffff" fontWeight={600}>
                 {c.name}
               </text>
@@ -298,9 +308,9 @@ export default function Home()
       </header>
 
 
-      <div className="flex gap-4">
-        {/* Left sidebar */}
-  <div className="w-1/6 min-w-[200px] bg-green-900 border border-green-800 p-4 rounded">
+  <div className="flex gap-0">
+    {/* Left sidebar */}
+  <div className="flex-none min-w-[200px] bg-green-900 border border-green-800 p-4 rounded-lg overflow-hidden">
           <DataUploader onLoad={handleLoad} onReset={handleResetSample} />
           <div className="mt-4">
             <div className="mb-4 flex items-center gap-2">
@@ -324,14 +334,14 @@ export default function Home()
         </div>
 
 
-        {/* Center map */}
-        <div className="flex-grow flex justify-center items-start">
-          <div className="p-6 bg-purple-900 border-4 border-purple-900 rounded-lg shadow-lg">{renderSVGMap()}</div>
+        {/* Center map (fills remaining space) */}
+        <div className="flex-1 flex justify-center items-start">
+          <div className="p-6 bg-purple-900 border-4 border-purple-900 rounded-lg shadow-lg overflow-hidden w-full max-w-full">{renderSVGMap()}</div>
         </div>
 
 
   {/* Right sidebar */}
-  <div className="w-1/6 min-w-[280px] bg-green-900 border border-green-800 p-4 rounded">
+  <div className="flex-none min-w-[280px] bg-green-900 border border-green-800 p-4 rounded-lg overflow-hidden">
 
 
           {/* details panel when a cauldron is selected */}
@@ -397,7 +407,7 @@ export default function Home()
               </thead>
               <tbody>
                 {matches.map((m) => (
-                  <tr key={m.ticket.id} className={m.suspicious ? "bg-red-50" : ""}>
+                  <tr key={m.ticket.id} className={m.suspicious ? "bg-red-400" : ""}>
                     <td>{m.ticket.id}</td>
                     <td className="text-center">{m.ticket.amount}</td>
                     <td className="text-center">{m.matchedDrain ? `${m.matchedDrain.cauldronId} (${m.matchedDrain.removedVolume}u)` : "-"}</td>
@@ -407,7 +417,6 @@ export default function Home()
                 ))}
               </tbody>
             </table>
-            <p className="text-xs text-zinc-600 mt-2">Matching: nearest-amount heuristic; flags if diff &gt; max(20 units, 10%).</p>
           </section>
         </div>
       </div>
