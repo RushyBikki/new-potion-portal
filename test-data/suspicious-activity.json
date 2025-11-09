@@ -1,0 +1,25 @@
+{
+  "cauldrons": [
+    { "id": "c1", "name": "North Cauldron", "lat": 0.8, "lon": 0.2, "maxVolume": 1000, "fillRatePerMin": 0.6 },
+    { "id": "c2", "name": "East Cauldron", "lat": 0.6, "lon": 0.7, "maxVolume": 800, "fillRatePerMin": 0.9 },
+    { "id": "c3", "name": "South Cauldron", "lat": 0.2, "lon": 0.4, "maxVolume": 1200, "fillRatePerMin": 0.4 },
+    { "id": "market", "name": "Enchanted Market", "lat": 0.5, "lon": 0.5, "maxVolume": 99999, "fillRatePerMin": 0 }
+  ],
+  "edges": [
+    { "from": "c1", "to": "c2", "travelMin": 10 },
+    { "from": "c2", "to": "c3", "travelMin": 8 },
+    { "from": "c3", "to": "market", "travelMin": 6 }
+  ],
+  "drains": [
+    { "cauldronId": "c1", "startMin": 180, "endMin": 185, "removedVolume": 150 },
+    { "cauldronId": "c2", "startMin": 480, "endMin": 485, "removedVolume": 300 },
+    { "cauldronId": "c3", "startMin": 900, "endMin": 905, "removedVolume": 250 },
+    { "cauldronId": "c1", "startMin": 1000, "endMin": 1005, "removedVolume": 100 }
+  ],
+  "tickets": [
+    { "id": "t1", "date": "2025-11-08", "amount": 150 },
+    { "id": "t2", "date": "2025-11-08", "amount": 200 },
+    { "id": "t3", "date": "2025-11-08", "amount": 250 },
+    { "id": "t4", "date": "2025-11-08", "amount": 400 }
+  ]
+}
