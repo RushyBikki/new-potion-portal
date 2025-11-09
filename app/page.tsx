@@ -1,65 +1,415 @@
-import Image from "next/image";
+"use client";
+
+
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import DataUploader from "./components/DataUploader";
+import CauldronDetails from "./components/CauldronDetails";
+
+
+type Cauldron = {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  maxVolume: number;
+  fillRatePerMin: number; // units per minute
+};
+
+
+type Edge = { from: string; to: string; travelMin: number };
+
+
+type Ticket = { id: string; date: string; amount: number };
+
+
+// Scaled-down demo data for one day (1440 minutes); we'll compress playback for convenience
+const SAMPLE_CAULDRONS: Cauldron[] = [
+  { id: "c1", name: "North Cauldron", lat: 0.8, lon: 0.2, maxVolume: 1000, fillRatePerMin: 0.6 },
+  { id: "c2", name: "East Cauldron", lat: 0.6, lon: 0.7, maxVolume: 800, fillRatePerMin: 0.9 },
+  { id: "c3", name: "South Cauldron", lat: 0.2, lon: 0.4, maxVolume: 1200, fillRatePerMin: 0.4 },
+  { id: "market", name: "Enchanted Market", lat: 0.5, lon: 0.5, maxVolume: 99999, fillRatePerMin: 0 },
+];
+
+
+const SAMPLE_EDGES: Edge[] = [
+  { from: "c1", to: "c2", travelMin: 10 },
+  { from: "c2", to: "c3", travelMin: 8 },
+  { from: "c3", to: "c1", travelMin: 12 },
+  { from: "c1", to: "market", travelMin: 7 },
+  { from: "c2", to: "market", travelMin: 9 },
+  { from: "c3", to: "market", travelMin: 6 },
+];
+
+
+// Small set of drain events (minute index 0..1439). For demo, we pick a few drain windows.
+type DrainEvent = { cauldronId: string; startMin: number; endMin: number; removedVolume: number };
+
+
+const SAMPLE_DRAINS: DrainEvent[] = [
+  { cauldronId: "c1", startMin: 180, endMin: 185, removedVolume: 150 },
+  { cauldronId: "c2", startMin: 480, endMin: 485, removedVolume: 300 },
+  { cauldronId: "c3", startMin: 900, endMin: 905, removedVolume: 250 },
+];
+
+
+// Tickets that arrive with only a date (we're modelling a single-day run; use same date for simplicity)
+const SAMPLE_TICKETS: Ticket[] = [
+  { id: "t1", date: "2025-11-08", amount: 150 },
+  { id: "t2", date: "2025-11-08", amount: 285 }, // slightly different
+  { id: "t3", date: "2025-11-08", amount: 400 }, // bogus / suspicious
+];
+
+
+// Utility: build minute-by-minute history for each cauldron across the day (1440 min)
+function buildHistory(cauldron: Cauldron, drains: DrainEvent[], initial = 0) {
+  const minutes = 24 * 60; // 1440
+  const values = new Array(minutes).fill(0);
+  let cur = initial;
+  for (let m = 0; m < minutes; m++) {
+    // fill
+    cur += cauldron.fillRatePerMin;
+    // check drains that cover this minute
+    for (const d of drains) {
+      if (d.cauldronId !== cauldron.id) continue;
+      if (m >= d.startMin && m <= d.endMin) {
+        // remove portion of removedVolume across the drain window proportionally
+        const windowLen = d.endMin - d.startMin + 1;
+        const perMin = d.removedVolume / windowLen;
+        cur -= perMin;
+      }
+    }
+    if (cur < 0) cur = 0;
+    if (cur > cauldron.maxVolume) cur = cauldron.maxVolume;
+    values[m] = cur;
+  }
+  return values;
+}
+
 
 export default function Home() {
+  const [minute, setMinute] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [data, setData] = useState(() => ({
+    cauldrons: SAMPLE_CAULDRONS,
+    edges: SAMPLE_EDGES,
+    drains: SAMPLE_DRAINS,
+    tickets: SAMPLE_TICKETS,
+  }));
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const minutes = 24 * 60;
+
+
+  // Build history once
+  const histories = useMemo(() => {
+    const map: Record<string, number[]> = {};
+    for (const c of data.cauldrons) {
+      if (c.id === "market") continue; // market not simulated
+      map[c.id] = buildHistory(c, data.drains || [], 50); // start at 50 units
+    }
+    return map;
+  }, [data]);
+
+
+  // Detect drain events from history by detecting sudden drops
+  const detectedDrains = useMemo(() => {
+    const results: Array<{ cauldronId: string; minute: number; drop: number }> = [];
+    for (const c of data.cauldrons) {
+      if (c.id === "market") continue;
+      const h = histories[c.id];
+      for (let i = 1; i < h.length; i++) {
+        const delta = h[i - 1] - h[i];
+        if (delta > 5) {
+          results.push({ cauldronId: c.id, minute: i, drop: Math.round(delta) });
+        }
+      }
+    }
+    return results;
+  }, [histories]);
+
+
+  // Ticket matching: For each ticket, find a drain (detected or known) on that day that best matches amount
+  const matches = useMemo(() => {
+    const matchResults: Array<{ ticket: Ticket; matchedDrain?: DrainEvent; difference?: number; suspicious?: boolean }> = [];
+    for (const t of data.tickets) {
+      // candidate drains: those with same date (we use single date) => all SAMPLE_DRAINS
+      let best: DrainEvent | undefined;
+      let bestDiff = Infinity;
+      for (const d of data.drains) {
+        const diff = Math.abs(d.removedVolume - t.amount);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = d;
+        }
+      }
+      const suspicious = bestDiff > Math.max(20, (best ? best.removedVolume * 0.1 : 0));
+      matchResults.push({ ticket: t, matchedDrain: best, difference: Math.round(bestDiff), suspicious });
+    }
+    return matchResults;
+  }, [data]);
+
+
+  // playback timer (compressed) — play 24h across 90s (so ~0.66s per minute)
+  useEffect(() => {
+    if (!playing) return;
+    const interval = setInterval(() => {
+      setMinute((m) => (m + 1) % minutes);
+    }, 66); // ~66ms per minute => 1440*0.066 = ~95s
+    return () => clearInterval(interval);
+  }, [playing]);
+
+
+  function renderSVGMap() {
+    const w = 800;
+    const h = 600;
+    const pad = 20;
+    return (
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="border rounded bg-white">
+        <rect x="0" y="0" width={w} height={h} fill="white" />
+        {/* edges */}
+        {data.edges.map((e, i) => {
+          const a = data.cauldrons.find((c) => c.id === e.from)!;
+          const b = data.cauldrons.find((c) => c.id === e.to)!;
+          const x1 = pad + a.lon * (w - pad * 2);
+          const y1 = pad + a.lat * (h - pad * 2);
+          const x2 = pad + b.lon * (w - pad * 2);
+          const y2 = pad + b.lat * (h - pad * 2);
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#999" strokeWidth={2} />;
+        })}
+        {/* nodes */}
+        {data.cauldrons.map((c) => {
+          const x = pad + c.lon * (w - pad * 2);
+          const y = pad + c.lat * (h - pad * 2);
+          const value = c.id === "market" ? undefined : histories[c.id][minute];
+          const pct = value ? Math.round((value / c.maxVolume) * 100) : 0;
+          const radius = c.id === "market" ? 18 : 12 + Math.min(18, Math.round((pct / 100) * 18));
+          const color = c.id === "market" ? "#6B46C1" : pct > 80 ? "#dc2626" : pct > 50 ? "#f59e0b" : "#10b981";
+          const selected = selectedId === c.id;
+          return (
+            <g
+              key={c.id}
+              transform={`translate(${x},${y})`}
+              onClick={() => {
+                if (c.id === "market") return;
+                selectCauldron(selectedId === c.id ? null : c.id);
+              }}
+              style={{ cursor: c.id === "market" ? "default" : "pointer" }}
+              role="button"
+              aria-label={`Select ${c.name}`}>
+              <circle r={radius} fill={color} stroke={selected ? "#000" : "#111"} strokeWidth={selected ? 3 : 1} />
+              <text x={radius + 6} y={4} fontSize={12} fill="#000">
+                {c.name}
+              </text>
+              {c.id !== "market" && (
+                <text x={-10} y={radius + 14} fontSize={11} textAnchor="middle" fill="#000">
+                  {Math.round(value || 0)}u
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }
+
+
+  function handleLoad(parsed: any) {
+    // expect parsed to have optional arrays
+    setData((prev) => ({
+      cauldrons: parsed.cauldrons ?? prev.cauldrons,
+      edges: parsed.edges ?? prev.edges,
+      drains: parsed.drains ?? prev.drains,
+      tickets: parsed.tickets ?? prev.tickets,
+    }));
+    setSelectedId(null);
+    setMinute(0);
+  }
+
+
+  function handleResetSample() {
+    setData({ cauldrons: SAMPLE_CAULDRONS, edges: SAMPLE_EDGES, drains: SAMPLE_DRAINS, tickets: SAMPLE_TICKETS });
+    setSelectedId(null);
+    setMinute(0);
+  }
+
+
+  // Sync selection from URL -> state on load / when params change
+  useEffect(() => {
+    const param = searchParams.get("cauldron");
+    if (param && data.cauldrons.some((c) => c.id === param)) {
+      setSelectedId(param);
+    } else if (!param) {
+      setSelectedId(null);
+    }
+  }, [searchParams?.toString(), data.cauldrons]);
+
+
+  // Helper to select and update URL (replace, not push)
+  function selectCauldron(id: string | null) {
+    setSelectedId(id);
+    // build new search params
+    const sp = new URLSearchParams(searchParams ? Object.fromEntries(searchParams.entries()) : []);
+    if (id) {
+      sp.set("cauldron", id);
+    } else {
+      sp.delete("cauldron");
+    }
+    const q = sp.toString();
+    router.replace(`${pathname}${q ? `?${q}` : ""}`);
+  }
+
+
+  // Keyboard navigation: left/right to cycle, Escape to clear
+  useEffect(() => {
+    const ids = data.cauldrons.filter((c) => c.id !== "market").map((c) => c.id);
+    if (ids.length === 0) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        selectCauldron(null);
+        return;
+      }
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      e.preventDefault();
+      const current = selectedId ? ids.indexOf(selectedId) : -1;
+      let nextIdx = 0;
+      if (e.key === "ArrowRight") {
+        nextIdx = current === -1 ? 0 : (current + 1) % ids.length;
+      } else {
+        nextIdx = current === -1 ? ids.length - 1 : (current - 1 + ids.length) % ids.length;
+      }
+      selectCauldron(ids[nextIdx]);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [data.cauldrons, selectedId, searchParams, pathname, router]);
+
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <div className="min-h-screen p-4 bg-zinc-50 dark:bg-black text-slate-900 dark:text-zinc-50">
+      <header className="mb-6 text-center">
+        <h1 className="text-2xl font-bold">Potion Flow Monitoring — Demo</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-400">Scaled-down 1-day simulation for a 4-person hackathon team.</p>
+      </header>
+
+
+      <div className="flex gap-4">
+        {/* Left sidebar */}
+        <div className="w-1/6 min-w-[200px]">
+          <DataUploader onLoad={handleLoad} onReset={handleResetSample} />
+          <div className="mt-4">
+            <div className="mb-4 flex items-center gap-2">
+              <button onClick={() => setPlaying((p) => !p)} className="px-3 py-1 bg-slate-800 text-white rounded">
+                {playing ? "Pause" : "Play"}
+              </button>
+              <button onClick={() => setMinute(0)} className="px-3 py-1 border rounded">
+                Reset
+              </button>
+            </div>
+            <div className="text-sm text-zinc-600 mb-2">Minute: {minute}</div>
+            <input
+              type="range"
+              min={0}
+              max={minutes - 1}
+              value={minute}
+              onChange={(e) => setMinute(Number(e.target.value))}
+              className="w-full"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
         </div>
-      </main>
+
+
+        {/* Center map */}
+        <div className="flex-grow flex justify-center items-start">
+          <div className="p-6 bg-white rounded-lg shadow-sm">{renderSVGMap()}</div>
+        </div>
+
+
+        {/* Right sidebar */}
+        <div className="w-1/6 min-w-[280px]">
+
+
+          {/* details panel when a cauldron is selected */}
+          {selectedId && data.cauldrons.find((c) => c.id === selectedId) && histories[selectedId] && (
+            <div className="mt-4 p-3 border rounded bg-white dark:bg-zinc-900">
+              <CauldronDetails
+                cauldron={data.cauldrons.find((c) => c.id === selectedId)!}
+                history={histories[selectedId]}
+                minute={minute}
+                onClose={() => selectCauldron(null)}
+              />
+            </div>
+          )}
+
+
+          <section className="mt-4">
+            <h2 className="font-semibold">Cauldron snapshots</h2>
+            <ul>
+              {data.cauldrons.filter((c) => c.id !== "market").map((c) => {
+                const v = Math.round(histories[c.id][minute] || 0);
+                return (
+                  <li key={c.id} className="py-2 border-b">
+                    <div className="flex justify-between">
+                      <div>
+                        <strong>{c.name}</strong>
+                        <div className="text-sm text-zinc-600">max {c.maxVolume}u • fill {c.fillRatePerMin}/min</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg">{v}u</div>
+                        <div className="text-sm text-zinc-500">{Math.round((v / c.maxVolume) * 100)}%</div>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+
+          <section className="mt-4">
+            <h2 className="font-semibold">Detected drain events</h2>
+            <ul>
+              {detectedDrains.slice(0, 10).map((d, i) => (
+                <li key={i} className="text-sm">
+                  {d.cauldronId} @ minute {d.minute} dropped {d.drop}u
+                </li>
+              ))}
+            </ul>
+          </section>
+
+
+          <section className="mt-4">
+            <h2 className="font-semibold">Ticket matching</h2>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th className="text-left">Ticket</th>
+                  <th>Amount</th>
+                  <th>Matched Drain</th>
+                  <th>Diff</th>
+                  <th>Flag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matches.map((m) => (
+                  <tr key={m.ticket.id} className={m.suspicious ? "bg-red-50" : ""}>
+                    <td>{m.ticket.id}</td>
+                    <td className="text-center">{m.ticket.amount}</td>
+                    <td className="text-center">{m.matchedDrain ? `${m.matchedDrain.cauldronId} (${m.matchedDrain.removedVolume}u)` : "-"}</td>
+                    <td className="text-center">{m.difference}</td>
+                    <td className="text-center">{m.suspicious ? "SUSPICIOUS" : "OK"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-zinc-600 mt-2">Matching: nearest-amount heuristic; flags if diff &gt; max(20 units, 10%).</p>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
+
+

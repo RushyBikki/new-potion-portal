@@ -1,9 +1,15 @@
 "use client";
 
+
 import React from "react";
 
-/*  Accepts a JSON file containing: { cauldrons: [], edges: [], drains: [], tickets: [] } - Calls onLoad with parsed partial dat*/
-export default function DataUploader({ onLoad }: { onLoad: (d: any) => void }) {
+
+/**
+ * DataUploader
+ * - Accepts a JSON file containing: { cauldrons: [], edges: [], drains: [], tickets: [] }
+ * - Calls onLoad with parsed partial data
+ */
+export default function DataUploader({ onLoad, onReset }: { onLoad: (d: any) => void; onReset: () => void }) {
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -13,11 +19,12 @@ export default function DataUploader({ onLoad }: { onLoad: (d: any) => void }) {
       const parsed = JSON.parse(text);
       onLoad(parsed);
     } catch (err) {
-      //not JSON — simple CSV auto-detect not implemented, show error
+      // not JSON — simple CSV auto-detect not implemented, show error
       alert("Only JSON uploads supported in this demo. JSON should contain cauldrons, edges, drains, tickets arrays.");
     }
     e.target.value = "";
   }
+
 
   return (
     <div className="mb-4 p-3 border rounded bg-white dark:bg-zinc-900">
@@ -29,7 +36,11 @@ export default function DataUploader({ onLoad }: { onLoad: (d: any) => void }) {
             Upload JSON
           </label>
         </div>
+        <button onClick={onReset} className="ml-auto px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+          Load sample
+        </button>
       </div>
+
 
       <p className="mt-2 text-xs text-zinc-500">Expected JSON shape: {`{ cauldrons: [...], edges: [...], drains: [...], tickets: [...] }`}</p>
     </div>
