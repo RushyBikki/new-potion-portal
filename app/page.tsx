@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import DataUploader from "./components/DataUploader";
 import CauldronDetails from "./components/CauldronDetails";
+import Navbar from "./components/Navbar";
 
 
 type Cauldron = {
@@ -87,10 +88,12 @@ function buildHistory(cauldron: Cauldron, drains: DrainEvent[], initial = 0) {
 }
 
 
-export default function Home() {
+export default function Home() 
+{
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [data, setData] = useState(() => ({
+  const [data, setData] =
+  useState(() => ({
     cauldrons: SAMPLE_CAULDRONS,
     edges: SAMPLE_EDGES,
     drains: SAMPLE_DRAINS,
@@ -167,8 +170,8 @@ export default function Home() {
     const h = 600;
     const pad = 20;
     return (
-      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="border rounded bg-white">
-        <rect x="0" y="0" width={w} height={h} fill="white" />
+        <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="border rounded bg-purple-900">
+          <rect x="0" y="0" width={w} height={h} fill="#1b0b2f" />
         {/* edges */}
         {data.edges.map((e, i) => {
           const a = data.cauldrons.find((c) => c.id === e.from)!;
@@ -177,7 +180,7 @@ export default function Home() {
           const y1 = pad + a.lat * (h - pad * 2);
           const x2 = pad + b.lon * (w - pad * 2);
           const y2 = pad + b.lat * (h - pad * 2);
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#999" strokeWidth={2} />;
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#16a34a" strokeWidth={2} opacity={0.9} />;
         })}
         {/* nodes */}
         {data.cauldrons.map((c) => {
@@ -185,8 +188,8 @@ export default function Home() {
           const y = pad + c.lat * (h - pad * 2);
           const value = c.id === "market" ? undefined : histories[c.id][minute];
           const pct = value ? Math.round((value / c.maxVolume) * 100) : 0;
-          const radius = c.id === "market" ? 18 : 12 + Math.min(18, Math.round((pct / 100) * 18));
-          const color = c.id === "market" ? "#6B46C1" : pct > 80 ? "#dc2626" : pct > 50 ? "#f59e0b" : "#10b981";
+          const radius = c.id === "market" ? 20 : 12 + Math.min(20, Math.round((pct / 100) * 20));
+          const color = c.id === "market" ? "#7c3aed" : pct > 80 ? "#6b21a8" : pct > 50 ? "#16a34a" : "#34d399";
           const selected = selectedId === c.id;
           return (
             <g
@@ -199,12 +202,12 @@ export default function Home() {
               style={{ cursor: c.id === "market" ? "default" : "pointer" }}
               role="button"
               aria-label={`Select ${c.name}`}>
-              <circle r={radius} fill={color} stroke={selected ? "#000" : "#111"} strokeWidth={selected ? 3 : 1} />
-              <text x={radius + 6} y={4} fontSize={12} fill="#000">
+              <circle r={radius} fill={color} stroke={selected ? "#7c3aed" : "#111"} strokeWidth={selected ? 3 : 1} />
+              <text x={radius + 8} y={4} fontSize={12} fill="#ffffff" fontWeight={600}>
                 {c.name}
               </text>
               {c.id !== "market" && (
-                <text x={-10} y={radius + 14} fontSize={11} textAnchor="middle" fill="#000">
+                <text x={-10} y={radius + 16} fontSize={11} textAnchor="middle" fill="#ffffff">
                   {Math.round(value || 0)}u
                 </text>
               )}
@@ -288,34 +291,34 @@ export default function Home() {
 
 
   return (
-    <div className="min-h-screen p-4 bg-zinc-50 dark:bg-black text-slate-900 dark:text-zinc-50">
+  <div className="min-h-screen p-6 bg-purple-900 text-white">
       <header className="mb-6 text-center">
-        <h1 className="text-2xl font-bold">Potion Flow Monitoring — Demo</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Scaled-down 1-day simulation for a 4-person hackathon team.</p>
+        <h1 className="text-3xl font-extrabold text-black">Peter's Potion Portal</h1>
+        <p className="text-sm text-black">HackUTD2025</p>
       </header>
 
 
       <div className="flex gap-4">
         {/* Left sidebar */}
-        <div className="w-1/6 min-w-[200px]">
+  <div className="w-1/6 min-w-[200px] bg-green-900 border border-green-800 p-4 rounded">
           <DataUploader onLoad={handleLoad} onReset={handleResetSample} />
           <div className="mt-4">
             <div className="mb-4 flex items-center gap-2">
-              <button onClick={() => setPlaying((p) => !p)} className="px-3 py-1 bg-slate-800 text-white rounded">
+              <button onClick={() => setPlaying((p) => !p)} className="px-3 py-1 bg-purple-800 text-white rounded font-semibold">
                 {playing ? "Pause" : "Play"}
               </button>
-              <button onClick={() => setMinute(0)} className="px-3 py-1 border rounded">
+              <button onClick={() => setMinute(0)} className="px-3 py-1 border border-purple-900 text-white rounded">
                 Reset
               </button>
             </div>
-            <div className="text-sm text-zinc-600 mb-2">Minute: {minute}</div>
+            <div className="text-sm text-white mb-2">Tick: {minute}</div>
             <input
               type="range"
               min={0}
               max={minutes - 1}
               value={minute}
               onChange={(e) => setMinute(Number(e.target.value))}
-              className="w-full"
+              className="w-full accent-purple-800"
             />
           </div>
         </div>
@@ -323,17 +326,17 @@ export default function Home() {
 
         {/* Center map */}
         <div className="flex-grow flex justify-center items-start">
-          <div className="p-6 bg-white rounded-lg shadow-sm">{renderSVGMap()}</div>
+          <div className="p-6 bg-purple-900 border-4 border-purple-900 rounded-lg shadow-lg">{renderSVGMap()}</div>
         </div>
 
 
-        {/* Right sidebar */}
-        <div className="w-1/6 min-w-[280px]">
+  {/* Right sidebar */}
+  <div className="w-1/6 min-w-[280px] bg-green-900 border border-green-800 p-4 rounded">
 
 
           {/* details panel when a cauldron is selected */}
           {selectedId && data.cauldrons.find((c) => c.id === selectedId) && histories[selectedId] && (
-            <div className="mt-4 p-3 border rounded bg-white dark:bg-zinc-900">
+            <div className="mt-4 p-3 border rounded bg-transparent">
               <CauldronDetails
                 cauldron={data.cauldrons.find((c) => c.id === selectedId)!}
                 history={histories[selectedId]}
@@ -345,20 +348,20 @@ export default function Home() {
 
 
           <section className="mt-4">
-            <h2 className="font-semibold">Cauldron snapshots</h2>
+            <h2 className="font-semibold text-green-300">Cauldron snapshots</h2>
             <ul>
               {data.cauldrons.filter((c) => c.id !== "market").map((c) => {
                 const v = Math.round(histories[c.id][minute] || 0);
                 return (
-                  <li key={c.id} className="py-2 border-b">
+                  <li key={c.id} className="py-2 border-b border-zinc-800">
                     <div className="flex justify-between">
                       <div>
-                        <strong>{c.name}</strong>
-                        <div className="text-sm text-zinc-600">max {c.maxVolume}u • fill {c.fillRatePerMin}/min</div>
+                        <strong className="text-green-200">{c.name}</strong>
+                        <div className="text-xs text-green-400">max {c.maxVolume}u • fill {c.fillRatePerMin}/min</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg">{v}u</div>
-                        <div className="text-sm text-zinc-500">{Math.round((v / c.maxVolume) * 100)}%</div>
+                        <div className="text-lg text-green-200">{v}u</div>
+                        <div className="text-xs text-green-400">{Math.round((v / c.maxVolume) * 100)}%</div>
                       </div>
                     </div>
                   </li>

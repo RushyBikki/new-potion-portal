@@ -27,22 +27,22 @@ export default function DataUploader({ onLoad, onReset }: { onLoad: (d: any) => 
 
 
   return (
-    <div className="mb-4 p-3 border rounded bg-white dark:bg-zinc-900">
+  <div className="mb-4 p-3 border rounded bg-purple-900/60 border-purple-900">
       <div className="flex items-center gap-2">
-        <label className="text-sm">Upload JSON data</label>
+        <label className="text-sm text-white">Upload JSON data</label>
         <div className="relative">
           <input type="file" accept="application/json" onChange={handleFile} className="hidden" id="file-upload" />
-          <label htmlFor="file-upload" className="cursor-pointer bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">
+          <label htmlFor="file-upload" className="cursor-pointer bg-purple-800 hover:bg-purple-900 text-white px-3 py-1 rounded text-sm">
             Upload JSON
           </label>
         </div>
-        <button onClick={onReset} className="ml-auto px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+        <button onClick={onReset} className="ml-auto px-3 py-1 border border-purple-900 text-white rounded text-sm hover:bg-purple-900/10">
           Load sample
         </button>
       </div>
 
 
-      <p className="mt-2 text-xs text-zinc-500">Expected JSON shape: {`{ cauldrons: [...], edges: [...], drains: [...], tickets: [...] }`}</p>
+      <p className="mt-2 text-xs text-white">Expected JSON shape: {`{ cauldrons: [...], edges: [...], drains: [...], tickets: [...] }`}</p>
     </div>
   );
 }
