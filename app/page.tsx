@@ -21,21 +21,67 @@ type Cauldron = {
 type Edge = { from: string; to: string; travelMin: number };
 
 
-type Ticket = { id: string; date: string; amount: number };
+type Ticket = { 
+  id: string;
+  date: string;
+  amount: number;
+  cauldronId: string;
+  courierId: string;
+};
 
 
 // Drain events type
 type DrainEvent = { cauldronId: string; startMin: number; endMin: number; removedVolume: number };
 
 
+// Time series data for calculating fill rates
+type TimeSeriesEntry = {
+  timestamp: string;
+  cauldron_levels: Record<string, number>;
+};
+
+const timeSeriesData: TimeSeriesEntry[] = [
+  {
+    "timestamp": "2025-10-30T00:00:00+00:00",
+    "cauldron_levels": {
+      "cauldron_001": 226.98, "cauldron_002": 240.22, "cauldron_003": 276.49,
+      "cauldron_004": 181.53, "cauldron_005": 293.94, "cauldron_006": 160.36,
+      "cauldron_007": 339.56, "cauldron_008": 192.62, "cauldron_009": 2.41,
+      "cauldron_010": 203.81, "cauldron_011": 410.88, "cauldron_012": 174.48
+    }
+  },
+  {
+    "timestamp": "2025-10-30T00:01:00+00:00",
+    "cauldron_levels": {
+      "cauldron_001": 227.03, "cauldron_002": 240.29, "cauldron_003": 276.62,
+      "cauldron_004": 181.67, "cauldron_005": 293.96, "cauldron_006": 160.39,
+      "cauldron_007": 339.49, "cauldron_008": 192.68, "cauldron_009": 2.59,
+      "cauldron_010": 203.89, "cauldron_011": 410.77, "cauldron_012": 174.62
+    }
+  }
+];
+
+// Calculate fill rates and initial volumes
+const initialVolumes = timeSeriesData[0].cauldron_levels;
+
+// Calculate fill rates by looking at the difference between consecutive readings
+const fillRates = Object.fromEntries(
+  Object.entries(timeSeriesData[1].cauldron_levels).map(([id, value]) => [
+    id,
+    value - timeSeriesData[0].cauldron_levels[id]
+  ])
+);
+
 // Utility: build minute-by-minute history for each cauldron across the day (1440 min)
 function buildHistory(cauldron: Cauldron, drains: DrainEvent[], initial = 0) {
   const minutes = 24 * 60; // 1440
   const values = new Array(minutes).fill(0);
-  let cur = initial;
+  let cur = initial || initialVolumes[cauldron.id] || cauldron.maxVolume * 0.5;
+  
   for (let m = 0; m < minutes; m++) {
-    // fill
+    // fill at the calculated rate
     cur += cauldron.fillRatePerMin;
+    
     // check drains that cover this minute
     for (const d of drains) {
       if (d.cauldronId !== cauldron.id) continue;
@@ -59,7 +105,20 @@ export default function Home()
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [data, setData] = useState(() => ({
-    cauldrons: [] as Cauldron[],
+    cauldrons: [
+      { id: "cauldron_001", name: "Crimson Brew Cauldron", lat: 33.2148, lon: -97.1331, maxVolume: 1000, fillRatePerMin: fillRates["cauldron_001"] },
+      { id: "cauldron_002", name: "Sapphire Mist Cauldron", lat: 33.2155, lon: -97.1325, maxVolume: 800, fillRatePerMin: fillRates["cauldron_002"] },
+      { id: "cauldron_003", name: "Golden Elixir Cauldron", lat: 33.2142, lon: -97.1338, maxVolume: 1200, fillRatePerMin: fillRates["cauldron_003"] },
+      { id: "cauldron_004", name: "Emerald Dreams Cauldron", lat: 33.216, lon: -97.1318, maxVolume: 750, fillRatePerMin: fillRates["cauldron_004"] },
+      { id: "cauldron_005", name: "Violet Vapors Cauldron", lat: 33.2135, lon: -97.1345, maxVolume: 900, fillRatePerMin: fillRates["cauldron_005"] },
+      { id: "cauldron_006", name: "Crystal Clear Cauldron", lat: 33.2165, lon: -97.131, maxVolume: 650, fillRatePerMin: fillRates["cauldron_006"] },
+      { id: "cauldron_007", name: "Ruby Radiance Cauldron", lat: 33.2128, lon: -97.1352, maxVolume: 1100, fillRatePerMin: fillRates["cauldron_007"] },
+      { id: "cauldron_008", name: "Azure Breeze Cauldron", lat: 33.217, lon: -97.1305, maxVolume: 700, fillRatePerMin: fillRates["cauldron_008"] },
+      { id: "cauldron_009", name: "Amber Glow Cauldron", lat: 33.212, lon: -97.136, maxVolume: 950, fillRatePerMin: fillRates["cauldron_009"] },
+      { id: "cauldron_010", name: "Pearl Shimmer Cauldron", lat: 33.2175, lon: -97.13, maxVolume: 850, fillRatePerMin: fillRates["cauldron_010"] },
+      { id: "cauldron_011", name: "Onyx Shadow Cauldron", lat: 33.2115, lon: -97.1368, maxVolume: 1050, fillRatePerMin: fillRates["cauldron_011"] },
+      { id: "cauldron_012", name: "Jade Serenity Cauldron", lat: 33.218, lon: -97.1295, maxVolume: 600, fillRatePerMin: fillRates["cauldron_012"] }
+    ] as Cauldron[],
     edges: [] as Edge[],
     drains: [] as DrainEvent[],
     tickets: [] as Ticket[],
@@ -76,90 +135,66 @@ export default function Home()
     try {
       setLoading(true);
       setError(null);
-      
-      // Fetch cauldrons data
-      const response = await fetch('/api?endpoint=Information/cauldrons', {
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch cauldrons data: ${errorText}`);
+
+      // Fetch tickets from API
+      const ticketsResponse = await fetch('/api/route?endpoint=tickets');
+      if (!ticketsResponse.ok) {
+        throw new Error('Failed to fetch tickets');
       }
-      const cauldronsData = await response.json();
-      
-      // If the data is wrapped in an object, extract the array
-      const cauldronArray = Array.isArray(cauldronsData) ? cauldronsData : 
-                          cauldronsData?.cauldrons || 
-                          cauldronsData?.data || 
-                          [];
-      
-      console.log('Raw cauldron data:', cauldronsData); // Debug log
+      const ticketData = await ticketsResponse.json();
 
-      // Normalize coordinates to 0-1 range
-      const normalizeCoords = (coords: { latitude: number; longitude: number }[]) => {
-        const lats = coords.map(c => c.latitude);
-        const lons = coords.map(c => c.longitude);
-        const minLat = Math.min(...lats);
-        const maxLat = Math.max(...lats);
-        const minLon = Math.min(...lons);
-        const maxLon = Math.max(...lons);
+      // Process tickets and create drain events
+      const drainEvents: DrainEvent[] = ticketData.map((ticket: any) => {
+        // Parse the ticket date and add random minutes (0-1440) for the drain time
+        const ticketDate = new Date(ticket.date);
+        const startMin = Math.floor(Math.random() * 1440); // Random start time in the day
         
-        return (coord: { latitude: number; longitude: number }) => ({
-          lat: (coord.latitude - minLat) / (maxLat - minLat),
-          lon: (coord.longitude - minLon) / (maxLon - minLon)
-        });
-      };
-
-      // Get the coordinate normalizer function
-      const normalize = normalizeCoords(cauldronsData);
-
-      // Transform cauldron data to match our format
-      const transformedCauldrons = cauldronsData.map((c: any) => {
-        const normalized = normalize(c);
         return {
-          id: String(c.id),
-          name: c.name,
-          lat: normalized.lat,
-          lon: normalized.lon,
-          maxVolume: c.max_volume,
-          fillRatePerMin: 0.5 // We'll calculate this from time series data
+          cauldronId: ticket.cauldron_id,
+          startMin: startMin,
+          endMin: startMin + 15, // 15 minutes to drain
+          removedVolume: ticket.amount
         };
       });
 
-      console.log('Transformed cauldrons:', transformedCauldrons); // Debug log
-
-      // Define the market node
+      // Define the market node with centered coordinates
       const marketNode: Cauldron = {
         id: "market",
         name: "Enchanted Market",
-        lat: 0.5, // Center position
-        lon: 0.5, // Center position
+        lat: (33.2180 + 33.2115) / 2, // Center between min and max lat
+        lon: (-97.1368 + -97.1295) / 2, // Center between min and max lon
         maxVolume: 99999,
         fillRatePerMin: 0
       };
 
-      // Add market to the cauldrons list
-      const allCauldrons = [...transformedCauldrons, marketNode];
-
       // Create edges connecting all cauldrons to the market
-      const marketEdges = transformedCauldrons.map((c: Cauldron) => ({
-        from: c.id,
-        to: "market",
-        travelMin: Math.floor(Math.random() * 15) + 5 // Random travel time between 5-20 minutes
+      const marketEdges: Edge[] = [];
+      for (const c of data.cauldrons) {
+        if (c.id !== "market") {
+          marketEdges.push({
+            from: c.id,
+            to: "market",
+            travelMin: 15 // Fixed 15 minute travel time
+          });
+        }
+      }
+
+      // Format tickets for our state
+      const formattedTickets: Ticket[] = ticketData.map((t: any) => ({
+        id: t.ticket_id,
+        date: t.date,
+        amount: t.amount,
+        cauldronId: t.cauldron_id,
+        courierId: t.courier_id
       }));
 
-      console.log('All cauldrons:', allCauldrons); // Debug log
-      console.log('Market edges:', marketEdges); // Debug log
-
-      // Update state with the transformed data
+      // Update state with market edges and tickets
       setData(prev => ({
         ...prev,
-        cauldrons: allCauldrons,
+        cauldrons: [...prev.cauldrons.filter(c => c.id !== "market"), marketNode],
         edges: marketEdges,
-        drains: [], // Clear sample drains
-        tickets: []  // Clear sample tickets
+        tickets: formattedTickets,
+        drains: drainEvents
       }));
 
     } catch (err) {
@@ -195,34 +230,55 @@ export default function Home()
       const h = histories[c.id];
       for (let i = 1; i < h.length; i++) {
         const delta = h[i - 1] - h[i];
-        if (delta > 5) {
-          results.push({ cauldronId: c.id, minute: i, drop: Math.round(delta) });
+        // Significant drop threshold: more than 5 units per minute or 1% of max volume, whichever is larger
+        const threshold = Math.max(5, c.maxVolume * 0.01);
+        if (delta > threshold) {
+          results.push({ 
+            cauldronId: c.id, 
+            minute: i, 
+            drop: Math.round(delta * 100) / 100 
+          });
         }
       }
     }
-    return results;
-  }, [histories]);
+    // Sort by minute to show chronological order
+    return results.sort((a, b) => a.minute - b.minute);
+  }, [histories, data.cauldrons]);
 
 
   // Ticket matching: For each ticket, find a drain (detected or known) on that day that best matches amount
   const matches = useMemo(() => {
-    const matchResults: Array<{ ticket: Ticket; matchedDrain?: DrainEvent; difference?: number; suspicious?: boolean }> = [];
+    const matchResults: Array<{ ticket: Ticket; matchedDrain?: DrainEvent | { cauldronId: string; minute: number; drop: number }; difference?: number; suspicious?: boolean }> = [];
     for (const t of data.tickets) {
-      // candidate drains: those with same date (we use single date) => all SAMPLE_DRAINS
-      let best: DrainEvent | undefined;
+      // Consider both recorded drains and detected drains as candidates
+      const candidates = [
+        ...data.drains.map(d => ({ ...d, drop: d.removedVolume })),
+        ...detectedDrains
+      ];
+      
+      let best: (DrainEvent | { cauldronId: string; minute: number; drop: number }) | undefined;
       let bestDiff = Infinity;
-      for (const d of data.drains) {
-        const diff = Math.abs(d.removedVolume - t.amount);
+      
+      for (const d of candidates) {
+        const diff = Math.abs(d.drop - t.amount);
         if (diff < bestDiff) {
           bestDiff = diff;
           best = d;
         }
       }
-      const suspicious = bestDiff > Math.max(20, (best ? best.removedVolume * 0.1 : 0));
-      matchResults.push({ ticket: t, matchedDrain: best, difference: Math.round(bestDiff), suspicious });
+
+      // Flag as suspicious if difference is >20 units or >10% of drain amount
+      const drainAmount = best ? ('removedVolume' in best ? best.removedVolume : best.drop) : 0;
+      const suspicious = bestDiff > Math.max(20, drainAmount * 0.1);
+      matchResults.push({ 
+        ticket: t, 
+        matchedDrain: best, 
+        difference: Math.round(bestDiff * 100) / 100, 
+        suspicious 
+      });
     }
     return matchResults;
-  }, [data]);
+  }, [data, detectedDrains]);
 
 
   // playback timer (compressed) — play 24h across 90s (so ~0.66s per minute)
@@ -238,24 +294,69 @@ export default function Home()
   function renderSVGMap() {
     const w = 800;
     const h = 600;
-    const pad = 20;
+    const pad = 40;
+
+    // Calculate viewport size maintaining aspect ratio of the geographical area
+    const cauldrons = data.cauldrons.map(c => {
+      const lat = c.lat;
+      const lon = c.lon;
+      const lats = data.cauldrons.filter(c => c.id !== "market").map(c => c.lat);
+      const lons = data.cauldrons.filter(c => c.id !== "market").map(c => c.lon);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLon = Math.min(...lons);
+      const maxLon = Math.max(...lons);
+      
+      // Calculate aspect ratio of the geographical area
+      const latSpan = maxLat - minLat;
+      const lonSpan = maxLon - minLon;
+      
+      if (c.id === "market") {
+        return {
+          ...c,
+          normalizedLon: 0.5,
+          normalizedLat: 0.5
+        };
+      }
+      
+      // Preserve aspect ratio by scaling both dimensions to the same unit scale
+      const scale = Math.max(latSpan, lonSpan);
+      const normalizedLon = (lon - minLon) / scale;
+      const normalizedLat = (lat - minLat) / scale;
+      
+      return {
+        ...c,
+        normalizedLon,
+        normalizedLat
+      };
+    });
+
     return (
         <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet" className="w-full h-auto border rounded bg-purple-900">
           <rect x="0" y="0" width={w} height={h} rx={18} ry={18} fill="#1b0b2f" />
         {/* edges */}
         {data.edges.map((e, i) => {
-          const a = data.cauldrons.find((c) => c.id === e.from)!;
-          const b = data.cauldrons.find((c) => c.id === e.to)!;
-          const x1 = pad + a.lon * (w - pad * 2);
-          const y1 = pad + a.lat * (h - pad * 2);
-          const x2 = pad + b.lon * (w - pad * 2);
-          const y2 = pad + b.lat * (h - pad * 2);
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#16a34a" strokeWidth={2} opacity={0.9} />;
+          const fromCauldron = cauldrons.find((c) => c.id === e.from)!;
+          const toCauldron = cauldrons.find((c) => c.id === e.to)!;
+          const x1 = pad + fromCauldron.normalizedLon * (w - pad * 2);
+          const y1 = pad + fromCauldron.normalizedLat * (h - pad * 2);
+          const x2 = pad + toCauldron.normalizedLon * (w - pad * 2);
+          const y2 = pad + toCauldron.normalizedLat * (h - pad * 2);
+          return <line 
+            key={i} 
+            x1={x1} 
+            y1={y1} 
+            x2={x2} 
+            y2={y2} 
+            stroke="#16a34a" 
+            strokeWidth={2} 
+            opacity={0.9} 
+          />;
         })}
         {/* nodes */}
-          {data.cauldrons.map((c) => {
-          const x = pad + c.lon * (w - pad * 2);
-          const y = pad + c.lat * (h - pad * 2);
+          {cauldrons.map((c) => {
+          const x = pad + c.normalizedLon * (w - pad * 2);
+          const y = pad + c.normalizedLat * (h - pad * 2);
           const value = c.id === "market" ? undefined : histories[c.id][minute];
           const radius = c.id === "market" ? 36 : 28;
           const selected = selectedId === c.id;
@@ -285,9 +386,9 @@ export default function Home()
               <text x={radius + 8} y={4} fontSize={12} fill="#ffffff" fontWeight={600}>
                 {c.name}
               </text>
-              {c.id !== "market" && (
-                <text x={-10} y={radius + 16} fontSize={11} textAnchor="middle" fill="#ffffff">
-                  {Math.round(value || 0)}u
+                  {c.id !== "market" && (
+                <text x={-10} y={radius + 16} fontSize={11} textAnchor="middle" fill={value === c.maxVolume ? "#ff0000" : "#ffffff"}>
+                  {Math.round((value || 0) * 100) / 100}L
                 </text>
               )}
             </g>
@@ -363,7 +464,7 @@ export default function Home()
   return (
   <div className="min-h-screen p-6 bg-purple-900 text-white">
       <header className="mb-6 text-center">
-        <h1 className="text-3xl font-extrabold text-black">Peter's Potion Portal</h1>
+        <h1 className="text-3xl font-extrabold text-black">Poyo's Potion Portal</h1>
         <p className="text-sm text-black">HackUTD2025</p>
       </header>
 
@@ -435,10 +536,10 @@ export default function Home()
                     <div className="flex justify-between">
                       <div>
                         <strong className="text-green-200">{c.name}</strong>
-                        <div className="text-xs text-green-400">max {c.maxVolume}u • fill {c.fillRatePerMin}/min</div>
+                        <div className="text-xs text-green-400">max {c.maxVolume}L • fill {Math.round(c.fillRatePerMin * 100) / 100}L/min</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg text-green-200">{v}u</div>
+                        <div className={`text-lg ${v === c.maxVolume ? "text-red-500" : "text-green-200"}`}>{Math.round(v * 100) / 100}L</div>
                         <div className="text-xs text-green-400">{Math.round((v / c.maxVolume) * 100)}%</div>
                       </div>
                     </div>
@@ -450,41 +551,74 @@ export default function Home()
 
 
           <section className="mt-4">
-            <h2 className="font-semibold">Detected drain events</h2>
-            <ul>
-              {detectedDrains.slice(0, 10).map((d, i) => (
-                <li key={i} className="text-sm">
-                  {d.cauldronId} @ minute {d.minute} dropped {d.drop}u
-                </li>
-              ))}
-            </ul>
+            <h2 className="font-semibold text-green-300">Detected Drain Events</h2>
+            <div className="max-h-40 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="text-left">Cauldron</th>
+                    <th className="text-right">Time</th>
+                    <th className="text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detectedDrains.slice(0, 10).map((d, i) => {
+                    const cauldron = data.cauldrons.find(c => c.id === d.cauldronId);
+                    const hours = Math.floor(d.minute / 60);
+                    const mins = d.minute % 60;
+                    return (
+                      <tr key={i} className="border-t border-zinc-800">
+                        <td className="py-1">{cauldron?.name.split(' ')[0] || d.cauldronId}</td>
+                        <td className="text-right">{hours}:{mins.toString().padStart(2, '0')}</td>
+                        <td className="text-right text-red-400">-{d.drop}L</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </section>
 
 
           <section className="mt-4">
-            <h2 className="font-semibold">Ticket matching</h2>
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr>
-                  <th className="text-left">Ticket</th>
-                  <th>Amount</th>
-                  <th>Matched Drain</th>
-                  <th>Diff</th>
-                  <th>Flag</th>
-                </tr>
-              </thead>
-              <tbody>
-                {matches.map((m) => (
-                  <tr key={m.ticket.id} className={m.suspicious ? "bg-red-400" : ""}>
-                    <td>{m.ticket.id}</td>
-                    <td className="text-center">{m.ticket.amount}</td>
-                    <td className="text-center">{m.matchedDrain ? `${m.matchedDrain.cauldronId} (${m.matchedDrain.removedVolume}u)` : "-"}</td>
-                    <td className="text-center">{m.difference}</td>
-                    <td className="text-center">{m.suspicious ? "SUSPICIOUS" : "OK"}</td>
+            <h2 className="font-semibold text-green-300">Tickets</h2>
+            <div className="max-h-[300px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-green-200 border-b border-green-800">
+                    <th className="py-2 text-left">Ticket</th>
+                    <th className="text-right">Amount</th>
+                    <th className="text-center">Details</th>
+                    <th className="text-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.tickets.map((ticket) => {
+                    const match = matches.find(m => m.ticket.id === ticket.id);
+                    return (
+                      <tr key={ticket.id} className={`border-b border-zinc-800 ${match?.suspicious ? "bg-red-900/50" : ""}`}>
+                        <td className="py-3">
+                          <div className="font-medium">{ticket.id}</div>
+                          <div className="text-xs text-green-400">Date: {new Date(ticket.date).toLocaleDateString()}</div>
+                        </td>
+                        <td className="text-right">
+                          <div>{Math.round(ticket.amount * 100) / 100}L</div>
+                        </td>
+                        <td className="text-center">
+                          <div className="text-sm">{ticket.cauldronId}</div>
+                          <div className="text-xs text-green-400">Courier: {ticket.courierId}</div>
+                        </td>
+                        <td className="text-center">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${match?.suspicious ? "bg-red-900/50 text-red-400" : "bg-green-900/50 text-green-400"}`}>
+                            {match?.suspicious ? "SUSPICIOUS" : "INNOCENT"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
       </div>
