@@ -89,10 +89,22 @@ function buildHistory(cauldron: Cauldron, drains: DrainEvent[], initial = 0) {
 }
 
 
+
 export default function Home() 
 {
-  const results =  cauldronData();
-          console.log({results});
+  /*const calfet = async (e : any) => {
+    e.preventDefault(); // prevents page rolad when clicking search*/
+    const fetchCauldron = async() =>{
+      try{
+          const results =  cauldronData("/Information/cauldrons");
+          console.log(JSON.stringify(results) + "yo");
+      } catch(error){
+        console.error(error)
+      }
+    }/* 
+    fetchCauldron();
+  }*/
+ fetchCauldron();
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [data, setData] =
